@@ -3,106 +3,140 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DAIKIN AI Cooling Experience</title>
+<title>DAIKIN 3D AI Room Experience</title>
 <style>
 body { margin:0; background:black; color:white; font-family:-apple-system; overflow:hidden; }
-canvas { display:block; }
 .ui {
  position:absolute; top:20px; left:20px;
  background:rgba(255,255,255,0.08);
  backdrop-filter: blur(20px);
- padding:20px; border-radius:20px; width:260px;
+ padding:20px; border-radius:20px; width:280px;
 }
-input, select, button { width:100%; margin-top:8px; padding:10px; border-radius:10px; border:none; }
-button { background:white; color:black; font-weight:bold; cursor:pointer; }
-.logo { font-weight:bold; font-size:18px; margin-bottom:10px; }
-.btu {
- position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
- font-size:36px; text-align:center;
-}
-.buy {
- position:absolute; bottom:40px; right:40px;
- background:#00aaff; padding:15px 20px;
- border-radius:12px; cursor:pointer;
+input { width:100%; margin-top:8px; padding:8px; border-radius:10px; border:none; }
+button { margin-top:10px; width:100%; padding:10px; border:none; border-radius:10px; background:white; color:black; font-weight:bold; }
+.info {
+ position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+ font-size:18px; text-align:center;
 }
 </style>
 </head>
 <body>
 
 <div class="ui">
-  <div class="logo">DAIKIN</div>
-  กว้าง<input id="w" type="number" value="4">
-  ยาว<input id="l" type="number" value="5">
-  คน<input id="p" type="number" value="2">
-  แดด<select id="s">
-    <option value="1">ปกติ</option>
-    <option value="1.3">แดดแรง</option>
-    <option value="1.6">แดดจัด</option>
-  </select>
-  <button onclick="analyze()">AI Analyze</button>
+<h3>DAIKIN AI ROOM</h3>
+กว้าง (m)<input id="w" type="number" value="4">
+ยาว (m)<input id="l" type="number" value="5">
+สูง (m)<input id="h" type="number" value="2.6">
+<button onclick="updateRoom()">Update Room</button>
 </div>
 
-<div class="btu" id="btu">--</div>
-<div class="buy" onclick="buy()">ซื้อเลย</div>
+<div class="info" id="info">--</div>
 
-<canvas id="c"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
 
-function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-resize(); window.onresize = resize;
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(6,5,8);
 
-let airflow = [];
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-function draw(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
- // heat map background
- let grad = ctx.createRadialGradient(canvas.width/2,canvas.height/2,50,canvas.width/2,canvas.height/2,400);
- grad.addColorStop(0,"rgba(255,0,0,0.3)");
- grad.addColorStop(1,"rgba(0,0,255,0.3)");
- ctx.fillStyle = grad;
- ctx.fillRect(0,0,canvas.width,canvas.height);
+// LIGHT
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+scene.add(light);
 
- // airflow particles
- airflow.forEach(p=>{
-   p.x += p.vx;
-   p.y += p.vy;
-   ctx.fillStyle = "rgba(0,200,255,0.7)";
-   ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
- });
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5,10,7);
+scene.add(dirLight);
 
- requestAnimationFrame(draw);
+// ROOM (dynamic box)
+let roomMesh;
+function createRoom(w,l,h){
+ if(roomMesh) scene.remove(roomMesh);
+ const geo = new THREE.BoxGeometry(w, h, l);
+ const mat = new THREE.MeshStandardMaterial({color:0x222244, wireframe:true});
+ roomMesh = new THREE.Mesh(geo, mat);
+ roomMesh.position.y = h/2;
+ scene.add(roomMesh);
 }
-draw();
 
-function analyze(){
- let w=+wEl.value, l=+lEl.value, p=+pEl.value, s=+sEl.value;
- let btu=(w*l*750 + p*600)*s;
- document.getElementById('btu').innerHTML = Math.round(btu)+" BTU<br><small>Recommended cooling capacity</small>";
+// LOAD MODELS
+const loader = new THREE.GLTFLoader();
 
- // generate airflow
- airflow=[];
- for(let i=0;i<100;i++){
-   airflow.push({x:50,y:canvas.height/2, vx:Math.random()*3+1, vy:(Math.random()-0.5)*2});
- }
+function loadModel(file, x,y,z, scale){
+ loader.load(file, function(gltf){
+   let obj = gltf.scene;
+   obj.position.set(x,y,z);
+   obj.scale.set(scale,scale,scale);
+   scene.add(obj);
+ });
+}
 
- // AI voice
- let msg = new SpeechSynthesisUtterance("Recommended cooling capacity is "+Math.round(btu)+" BTU");
+// LOAD YOUR FILES
+loadModel('1.glb', 0,0,0, 0.5);   // แอร์
+loadModel('2.glb', -1,0,-1, 0.7); // โซฟา
+loadModel('3.obj.glb', 1,0,1, 0.7); // เตียง
+loadModel('4.obj.glb', 0,0,0, 1); // ห้อง
+
+// AIRFLOW PARTICLES
+let particles = [];
+for(let i=0;i<200;i++){
+ let p = new THREE.Mesh(
+   new THREE.SphereGeometry(0.03),
+   new THREE.MeshBasicMaterial({color:0x00ccff})
+ );
+ p.position.set(0,2,0);
+ particles.push(p);
+ scene.add(p);
+}
+
+function airflow(){
+ particles.forEach(p=>{
+   p.position.x += 0.02;
+   if(p.position.x > 5) p.position.x = 0;
+ });
+}
+
+// UPDATE ROOM
+function updateRoom(){
+ let w = +document.getElementById('w').value;
+ let l = +document.getElementById('l').value;
+ let h = +document.getElementById('h').value;
+
+ createRoom(w,l,h);
+
+ let area = w*l;
+ let btu = area * 750;
+
+ document.getElementById('info').innerHTML = `\n ขนาดห้อง: ${w} x ${l} x ${h} เมตร <br>
+ พื้นที่: ${area.toFixed(2)} ตร.ม. <br>
+ BTU แนะนำ: ${Math.round(btu)} BTU`;
+
+ // AI Voice
+ let msg = new SpeechSynthesisUtterance("Room size " + w + " by " + l + " meters. Recommended cooling capacity " + Math.round(btu) + " BTU");
  speechSynthesis.speak(msg);
 }
 
-function buy(){
- alert("Redirect to DAIKIN product page");
+// INIT
+updateRoom();
+
+// LOOP
+function animate(){
+ requestAnimationFrame(animate);
+ airflow();
+ controls.update();
+ renderer.render(scene, camera);
 }
-
-const wEl=document.getElementById('w');
-const lEl=document.getElementById('l');
-const pEl=document.getElementById('p');
-const sEl=document.getElementById('s');
-
+animate();
 </script>
+
 </body>
 </html>
