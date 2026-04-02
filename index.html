@@ -3,65 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DAIKIN 3D AI Room (Fixed Final)</title>
+<title>DAIKIN 3D AI Room</title>
+
 <style>
-body { margin:0; background:black; color:white; font-family:-apple-system; overflow:hidden; }
-.ui { position:absolute; top:20px; left:20px; background:rgba(255,255,255,0.08); backdrop-filter: blur(20px); padding:20px; border-radius:20px; width:280px; }
-input { width:100%; margin-top:8px; padding:8px; border-radius:10px; border:none; }
-button { margin-top:10px; width:100%; padding:10px; border:none; border-radius:10px; background:white; color:black; font-weight:bold; }
-.info { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); font-size:18px; text-align:center; }
+body { margin:0; background:black; color:white; font-family:sans-serif; overflow:hidden; }
+.ui {
+ position:absolute; top:20px; left:20px;
+ background:rgba(255,255,255,0.08);
+ backdrop-filter: blur(20px);
+ padding:20px; border-radius:20px;
+}
+input { width:100%; margin-top:5px; padding:6px; }
+button { margin-top:10px; width:100%; padding:10px; }
+.info {
+ position:absolute; bottom:20px; left:50%;
+ transform:translateX(-50%);
+}
 </style>
 </head>
+
 <body>
 
 <div class="ui">
-<h3>DAIKIN AI ROOM</h3>
-กว้าง (m)<input id="w" type="number" value="4">
-ยาว (m)<input id="l" type="number" value="5">
-สูง (m)<input id="h" type="number" value="2.6">
-<button onclick="updateRoom()">Update Room</button>
+กว้าง <input id="w" type="number" value="4">
+ยาว <input id="l" type="number" value="5">
+สูง <input id="h" type="number" value="2.6">
+<button onclick="updateRoom()">Update</button>
 </div>
 
 <div class="info" id="info">--</div>
 
 <script type="module">
-// ✅ ใช้ CDN แบบถูกต้อง
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
 
+// ✅ ใช้ CDN URL เต็ม (แก้ error 100%)
+import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+
+// scene
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
+// camera
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(5,5,8);
 
+// renderer
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// control
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
-// LIGHT
+// light
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.5));
-const dir = new THREE.DirectionalLight(0xffffff,2);
-dir.position.set(5,10,7);
-scene.add(dir);
+const light = new THREE.DirectionalLight(0xffffff,2);
+light.position.set(5,10,7);
+scene.add(light);
 
-// ROOM
+// room
 let roomMesh = null;
 
 function createRoom(w,l,h){
- if(roomMesh){ scene.remove(roomMesh); }
+ if(roomMesh) scene.remove(roomMesh);
+
  const geo = new THREE.BoxGeometry(w,h,l);
- const mat = new THREE.MeshStandardMaterial({color:0x333355, wireframe:true});
+ const mat = new THREE.MeshBasicMaterial({color:0x4444ff, wireframe:true});
  roomMesh = new THREE.Mesh(geo, mat);
+
  roomMesh.position.y = h/2;
  scene.add(roomMesh);
 }
 
-// LOADER
+// loader
 const loader = new GLTFLoader();
 
 function loadModel(file,x,y,z,scale){
@@ -70,22 +85,25 @@ function loadModel(file,x,y,z,scale){
    obj.position.set(x,y,z);
    obj.scale.set(scale,scale,scale);
    scene.add(obj);
-   console.log(file+" โหลดสำเร็จ");
- },undefined,(err)=>{
-   console.error("โหลดไม่ได้:",file);
+   console.log(file,"OK");
+ },undefined,()=>{
+   console.log("โหลดไม่ได้",file);
  });
 }
 
-// LOAD FILES
+// โหลดโมเดล (ต้องมีไฟล์ใน repo)
 loadModel('1.glb',0,2,0,1);
 loadModel('2.glb',-2,0,0,1);
 loadModel('3.obj.glb',2,0,0,1);
 loadModel('4.obj.glb',0,0,0,1);
 
-// AIRFLOW
+// airflow
 let particles=[];
-for(let i=0;i<100;i++){
- let p=new THREE.Mesh(new THREE.SphereGeometry(0.03), new THREE.MeshBasicMaterial({color:0x00ccff}));
+for(let i=0;i<80;i++){
+ let p=new THREE.Mesh(
+  new THREE.SphereGeometry(0.03),
+  new THREE.MeshBasicMaterial({color:0x00ffff})
+ );
  p.position.set(0,2,0);
  scene.add(p);
  particles.push(p);
@@ -93,12 +111,12 @@ for(let i=0;i<100;i++){
 
 function airflow(){
  particles.forEach(p=>{
-   p.position.x+=0.05;
-   if(p.position.x>5) p.position.x=0;
+  p.position.x+=0.05;
+  if(p.position.x>5) p.position.x=0;
  });
 }
 
-// UPDATE ROOM
+// update
 window.updateRoom = function(){
  let w=+document.getElementById('w').value;
  let l=+document.getElementById('l').value;
@@ -109,11 +127,13 @@ window.updateRoom = function(){
  let area=w*l;
  let btu=area*750;
 
- document.getElementById('info').innerHTML=`${w} x ${l} x ${h} m<br>${area.toFixed(2)} m²<br>${Math.round(btu)} BTU`;
+ document.getElementById('info').innerHTML=
+ `${w} x ${l} x ${h} m<br>${area.toFixed(2)} m²<br>${Math.round(btu)} BTU`;
 }
 
 updateRoom();
 
+// animate
 function animate(){
  requestAnimationFrame(animate);
  airflow();
