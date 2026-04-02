@@ -2,40 +2,31 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>Smart Room Designer PRO+</title>
+<title>Room Designer PRO+</title>
 
 <style>
-body { margin:0; overflow:hidden; background:#0f0f0f; font-family:sans-serif; }
+body { margin:0; overflow:hidden; background:#dcdcdc; font-family:sans-serif; }
 
 #ui {
   position:absolute;
   left:20px;
   top:20px;
-  background:#1c1c1c;
+  background:white;
   padding:15px;
   border-radius:12px;
-  color:white;
-  width:240px;
+  width:260px;
 }
 
-button {
-  width:100%;
-  margin-top:8px;
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  background:#0077cc;
-  color:white;
-}
+label { font-size:12px; }
+input { width:100%; }
 
-#btu {
+#info {
   position:absolute;
   right:20px;
   top:20px;
-  background:#1c1c1c;
+  background:white;
   padding:15px;
-  border-radius:10px;
-  color:white;
+  border-radius:12px;
 }
 </style>
 </head>
@@ -43,146 +34,162 @@ button {
 <body>
 
 <div id="ui">
-  <h3>Room Designer</h3>
-  <button onclick="addModel('sofa')">เพิ่มโซฟา</button>
-  <button onclick="addModel('bed')">เพิ่มเตียง</button>
-  <button onclick="saveLayout()">💾 Save</button>
-  <button onclick="loadLayout()">📂 Load</button>
+  <h3>Room Control</h3>
+
+  <label>กว้าง</label>
+  <input type="range" id="w" min="2" max="10" step="0.1" value="5">
+
+  <label>ยาว</label>
+  <input type="range" id="l" min="2" max="10" step="0.1" value="5">
+
+  <label>สูง</label>
+  <input type="range" id="h" min="2" max="4" step="0.1" value="2.6">
+
+  <button onclick="addAir()">เพิ่มแอร์</button>
+  <button onclick="addBed()">เพิ่มเตียง</button>
+  <button onclick="addSofa()">เพิ่มโซฟา</button>
 </div>
 
-<div id="btu">BTU: -</div>
+<div id="info">BTU: -</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0f0f0f);
+scene.background = new THREE.Color(0xdcdcdc);
 
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+// 📌 1. ล็อกมุมกล้อง
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
 camera.position.set(6,6,6);
+camera.lookAt(0,0,0);
 
+// renderer
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-// lighting
-const light = new THREE.DirectionalLight(0xffffff, 1);
+// 💡 4. แสงสว่างขึ้น
+const light = new THREE.DirectionalLight(0xffffff, 1.2);
 light.position.set(5,10,5);
-light.castShadow = true;
 scene.add(light);
 
-const ambient = new THREE.AmbientLight(0x404040);
+const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
 
-// floor
+// 🌳 7. พื้นลายไม้
+const texture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/hardwood2_diffuse.jpg');
+texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+texture.repeat.set(4,4);
+
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(10,10),
-  new THREE.MeshStandardMaterial({color:0x222222})
+  new THREE.MeshStandardMaterial({map:texture})
 );
 floor.rotation.x = -Math.PI/2;
-floor.receiveShadow = true;
 scene.add(floor);
 
-// walls
-function createWall(x,z,rot){
-  const wall = new THREE.Mesh(
-    new THREE.BoxGeometry(10,2.5,0.1),
-    new THREE.MeshStandardMaterial({color:0xaaaaaa})
-  );
-  wall.position.set(x,1.25,z);
-  wall.rotation.y = rot;
-  scene.add(wall);
+// 🧱 ผนังสีขาว
+let walls = [];
+
+function createWalls(width, length, height){
+  walls.forEach(w=>scene.remove(w));
+  walls = [];
+
+  const mat = new THREE.MeshStandardMaterial({color:0xffffff});
+
+  function wall(x,y,z,rot,w,l){
+    let m = new THREE.Mesh(new THREE.BoxGeometry(w,height,0.1), mat);
+    m.position.set(x,height/2,z);
+    m.rotation.y = rot;
+    scene.add(m);
+    walls.push(m);
+  }
+
+  wall(0,0,-length/2,0,width);
+  wall(0,0,length/2,0,width);
+  wall(-width/2,0,0,Math.PI/2,length);
+  wall(width/2,0,0,Math.PI/2,length);
 }
-createWall(0,-5,0);
-createWall(0,5,0);
-createWall(-5,0,Math.PI/2);
-createWall(5,0,Math.PI/2);
 
 // objects
 let objects = [];
-const loader = new THREE.GLTFLoader();
 
-function addModel(type){
-  let url = '';
+// 📌 2. แอร์ (placeholder ก่อน)
+function addAir(){
+  let geo = new THREE.BoxGeometry(1.5,0.4,0.4);
+  let mat = new THREE.MeshStandardMaterial({color:0xeeeeee});
+  let ac = new THREE.Mesh(geo, mat);
+  ac.position.set(0,2.2,-2);
+  scene.add(ac);
 
-  if(type==='sofa'){
-    url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF/Box.gltf';
-  }else{
-    url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF/Duck.gltf';
-  }
-
-  loader.load(url, (gltf)=>{
-    let model = gltf.scene;
-    model.position.set(0,0,0);
-    model.scale.set(1,1,1);
-    scene.add(model);
-    objects.push(model);
-  });
+  createLabel(ac,"DAIKIN 12000 BTU");
+  objects.push(ac);
 }
 
-// drag + snap grid
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let selected = null;
-
-window.addEventListener('mousedown',(e)=>{
-  mouse.x = (e.clientX / innerWidth)*2-1;
-  mouse.y = -(e.clientY / innerHeight)*2+1;
-  raycaster.setFromCamera(mouse,camera);
-  let hit = raycaster.intersectObjects(objects,true);
-  if(hit.length>0){
-    selected = hit[0].object.parent;
-  }
-});
-
-window.addEventListener('mousemove',(e)=>{
-  if(!selected) return;
-  mouse.x = (e.clientX / innerWidth)*2-1;
-  mouse.y = -(e.clientY / innerHeight)*2+1;
-
-  raycaster.setFromCamera(mouse,camera);
-  let plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
-  let p = new THREE.Vector3();
-  raycaster.ray.intersectPlane(plane,p);
-
-  // snap grid
-  selected.position.x = Math.round(p.x);
-  selected.position.z = Math.round(p.z);
-});
-
-window.addEventListener('mouseup',()=>selected=null);
-
-// save/load
-function saveLayout(){
-  let data = objects.map(o=>({
-    x:o.position.x,
-    z:o.position.z
-  }));
-  localStorage.setItem("room", JSON.stringify(data));
+// 📌 6. เตียง
+function addBed(){
+  let geo = new THREE.BoxGeometry(2,0.5,2);
+  let mat = new THREE.MeshStandardMaterial({color:0x8888ff});
+  let bed = new THREE.Mesh(geo, mat);
+  bed.position.set(1,0.25,1);
+  scene.add(bed);
+  objects.push(bed);
 }
 
-function loadLayout(){
-  let data = JSON.parse(localStorage.getItem("room")||"[]");
-  data.forEach(d=>{
-    addModel('sofa');
-  });
+// 📌 6. โซฟา
+function addSofa(){
+  let geo = new THREE.BoxGeometry(2,1,1);
+  let mat = new THREE.MeshStandardMaterial({color:0x00aaff});
+  let sofa = new THREE.Mesh(geo, mat);
+  sofa.position.set(-1,0.5,1);
+  scene.add(sofa);
+  objects.push(sofa);
 }
 
-// BTU
-function updateBTU(){
-  let btu = objects.length * 500 + 9000;
-  document.getElementById('btu').innerHTML = "BTU: "+btu;
+// 📌 5. ป้ายชื่อ
+function createLabel(obj,text){
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = 256;
+  canvas.height = 64;
+
+  ctx.fillStyle = "white";
+  ctx.fillRect(0,0,256,64);
+  ctx.fillStyle = "black";
+  ctx.font = "20px Arial";
+  ctx.fillText(text,10,40);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({map:tex});
+  const sprite = new THREE.Sprite(mat);
+
+  sprite.scale.set(2,0.5,1);
+  sprite.position.set(0,1.5,0);
+
+  obj.add(sprite);
 }
 
-// loop
+// 📌 3. slider ปรับห้อง
+const w = document.getElementById('w');
+const l = document.getElementById('l');
+const h = document.getElementById('h');
+
+function updateRoom(){
+  createWalls(parseFloat(w.value), parseFloat(l.value), parseFloat(h.value));
+
+  let btu = (w.value * l.value * 700);
+  document.getElementById("info").innerHTML = "BTU: " + Math.round(btu);
+}
+
+w.oninput = updateRoom;
+l.oninput = updateRoom;
+h.oninput = updateRoom;
+
+updateRoom();
+
+// render
 function animate(){
   requestAnimationFrame(animate);
-  updateBTU();
   renderer.render(scene,camera);
 }
 animate();
