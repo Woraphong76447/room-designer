@@ -1,125 +1,192 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DAIKIN Smart Room Designer</title>
-  <style>
-    body { margin:0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg,#dff3ff,#ffffff); }
-    .app { display:flex; flex-wrap:wrap; }
-    .panel { width:320px; padding:20px; background:white; box-shadow:0 0 20px rgba(0,0,0,0.1); }
-    h1 { color:#0077cc; font-size:20px; }
-    label { font-size:13px; margin-top:10px; display:block; }
-    input, select { width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; }
-    button { margin-top:15px; width:100%; padding:12px; border:none; background:#0077cc; color:white; border-radius:10px; font-size:16px; cursor:pointer; }
-    .result { margin-top:15px; font-size:16px; }
+<meta charset="UTF-8">
+<title>Smart Room Designer PRO+</title>
 
-    .canvas-area { flex:1; position:relative; min-height:100vh; display:flex; align-items:center; justify-content:center; }
-    .room { position:relative; background:#e6f7ff; border:3px solid #0077cc; border-radius:10px; transition:0.3s; }
-    .item { position:absolute; padding:6px 10px; background:#0077cc; color:white; border-radius:8px; cursor:move; font-size:12px; }
+<style>
+body { margin:0; overflow:hidden; background:#0f0f0f; font-family:sans-serif; }
 
-    .btu-box { position:absolute; top:20px; right:20px; background:white; padding:15px; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.15); }
-  </style>
+#ui {
+  position:absolute;
+  left:20px;
+  top:20px;
+  background:#1c1c1c;
+  padding:15px;
+  border-radius:12px;
+  color:white;
+  width:240px;
+}
+
+button {
+  width:100%;
+  margin-top:8px;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:#0077cc;
+  color:white;
+}
+
+#btu {
+  position:absolute;
+  right:20px;
+  top:20px;
+  background:#1c1c1c;
+  padding:15px;
+  border-radius:10px;
+  color:white;
+}
+</style>
 </head>
+
 <body>
-<div class="app">
-  <div class="panel">
-    <h1>DAIKIN Smart Designer</h1>
 
-    <label>กว้าง (เมตร)</label>
-    <input type="number" id="width" value="4">
-
-    <label>ยาว (เมตร)</label>
-    <input type="number" id="length" value="5">
-
-    <label>สูง (เมตร)</label>
-    <input type="number" id="height" value="2.6">
-
-    <label>จำนวนคน</label>
-    <input type="number" id="people" value="2">
-
-    <label>ทิศแดด</label>
-    <select id="sun">
-      <option value="1">ปกติ</option>
-      <option value="1.2">แดดแรง</option>
-      <option value="1.4">แดดจัดมาก</option>
-    </select>
-
-    <button onclick="calculate()">คำนวณอัจฉริยะ</button>
-
-    <div class="result" id="result"></div>
-  </div>
-
-  <div class="canvas-area">
-    <div class="room" id="room"></div>
-    <div class="btu-box" id="btuBox">BTU: -</div>
-  </div>
+<div id="ui">
+  <h3>Room Designer</h3>
+  <button onclick="addModel('sofa')">เพิ่มโซฟา</button>
+  <button onclick="addModel('bed')">เพิ่มเตียง</button>
+  <button onclick="saveLayout()">💾 Save</button>
+  <button onclick="loadLayout()">📂 Load</button>
 </div>
 
+<div id="btu">BTU: -</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+
 <script>
-const room = document.getElementById('room');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f0f0f);
 
-function updateRoomSize(){
-  let w = document.getElementById('width').value * 60;
-  let l = document.getElementById('length').value * 60;
-  room.style.width = w + 'px';
-  room.style.height = l + 'px';
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(6,6,6);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+// lighting
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5,10,5);
+light.castShadow = true;
+scene.add(light);
+
+const ambient = new THREE.AmbientLight(0x404040);
+scene.add(ambient);
+
+// floor
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(10,10),
+  new THREE.MeshStandardMaterial({color:0x222222})
+);
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// walls
+function createWall(x,z,rot){
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(10,2.5,0.1),
+    new THREE.MeshStandardMaterial({color:0xaaaaaa})
+  );
+  wall.position.set(x,1.25,z);
+  wall.rotation.y = rot;
+  scene.add(wall);
 }
+createWall(0,-5,0);
+createWall(0,5,0);
+createWall(-5,0,Math.PI/2);
+createWall(5,0,Math.PI/2);
 
-function calculate(){
-  let w = parseFloat(document.getElementById('width').value);
-  let l = parseFloat(document.getElementById('length').value);
-  let people = parseFloat(document.getElementById('people').value);
-  let sun = parseFloat(document.getElementById('sun').value);
+// objects
+let objects = [];
+const loader = new THREE.GLTFLoader();
 
-  let area = w * l;
-  let btu = (area * 700 + (people * 600)) * sun;
+function addModel(type){
+  let url = '';
 
-  let size = '';
-  if (btu < 9000) size = '9,000 BTU (DAIKIN Compact)';
-  else if (btu < 12000) size = '12,000 BTU (DAIKIN Inverter)';
-  else if (btu < 18000) size = '18,000 BTU (DAIKIN Smart)';
-  else size = '24,000 BTU (DAIKIN Premium)';
-
-  document.getElementById('result').innerHTML = `\n    BTU: <b>${Math.round(btu)}</b><br>
-    รุ่นแนะนำ: <b>${size}</b>
-  `;
-
-  document.getElementById('btuBox').innerHTML = `BTU: ${Math.round(btu)}`;
-
-  updateRoomSize();
-}
-
-// Drag function
-function makeDraggable(el){
-  let offsetX, offsetY;
-  el.onmousedown = function(e){
-    offsetX = e.offsetX;
-    offsetY = e.offsetY;
-    document.onmousemove = function(e){
-      el.style.left = (e.pageX - room.offsetLeft - offsetX) + 'px';
-      el.style.top = (e.pageY - room.offsetTop - offsetY) + 'px';
-    }
-    document.onmouseup = function(){ document.onmousemove = null; }
+  if(type==='sofa'){
+    url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF/Box.gltf';
+  }else{
+    url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF/Duck.gltf';
   }
+
+  loader.load(url, (gltf)=>{
+    let model = gltf.scene;
+    model.position.set(0,0,0);
+    model.scale.set(1,1,1);
+    scene.add(model);
+    objects.push(model);
+  });
 }
 
-function createItem(name,x,y){
-  let el = document.createElement('div');
-  el.className = 'item';
-  el.innerText = name;
-  el.style.left = x+'px';
-  el.style.top = y+'px';
-  room.appendChild(el);
-  makeDraggable(el);
+// drag + snap grid
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let selected = null;
+
+window.addEventListener('mousedown',(e)=>{
+  mouse.x = (e.clientX / innerWidth)*2-1;
+  mouse.y = -(e.clientY / innerHeight)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  let hit = raycaster.intersectObjects(objects,true);
+  if(hit.length>0){
+    selected = hit[0].object.parent;
+  }
+});
+
+window.addEventListener('mousemove',(e)=>{
+  if(!selected) return;
+  mouse.x = (e.clientX / innerWidth)*2-1;
+  mouse.y = -(e.clientY / innerHeight)*2+1;
+
+  raycaster.setFromCamera(mouse,camera);
+  let plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
+  let p = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane,p);
+
+  // snap grid
+  selected.position.x = Math.round(p.x);
+  selected.position.z = Math.round(p.z);
+});
+
+window.addEventListener('mouseup',()=>selected=null);
+
+// save/load
+function saveLayout(){
+  let data = objects.map(o=>({
+    x:o.position.x,
+    z:o.position.z
+  }));
+  localStorage.setItem("room", JSON.stringify(data));
 }
 
-// default items
-createItem('เตียง',20,20);
-createItem('โซฟา',100,100);
-createItem('หน้าต่าง',200,50);
+function loadLayout(){
+  let data = JSON.parse(localStorage.getItem("room")||"[]");
+  data.forEach(d=>{
+    addModel('sofa');
+  });
+}
 
-updateRoomSize();
+// BTU
+function updateBTU(){
+  let btu = objects.length * 500 + 9000;
+  document.getElementById('btu').innerHTML = "BTU: "+btu;
+}
+
+// loop
+function animate(){
+  requestAnimationFrame(animate);
+  updateBTU();
+  renderer.render(scene,camera);
+}
+animate();
 </script>
+
 </body>
 </html>
